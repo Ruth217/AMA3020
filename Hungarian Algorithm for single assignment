@@ -1,0 +1,80 @@
+import numpy as np
+from scipy.optimize import linear_sum_assignment
+import pandas as pd
+import networkx as nx
+import matplotlib.pyplot as plt
+import sys
+from collections import defaultdict
+
+# -----------------------------
+# STEP 0: LOAD DATA
+# -----------------------------
+
+df = pd.read_excel("/content/realdata.xlsx", sheet_name=1)
+
+Assign = df.columns[1:].tolist()
+Students = df.iloc[:, 0].tolist()
+
+# Build assignment_rank[student][assignment] = rank
+assignment_rank = {}
+
+for idx, row in df.iterrows():
+    student = row.iloc[0]
+    ranks = row.iloc[1:]
+    assignment_rank[student] = {}
+
+    for assignment, rank in zip(Assign, ranks):
+        if pd.notna(rank):
+            assignment_rank[student][assignment] = int(rank)
+
+HIGH_COST = 999999
+
+# -----------------------------
+# STEP 1: BUILD COST MATRIX
+# -----------------------------
+
+num_students = len(Students)
+num_assignments = len(Assign)
+
+cost_matrix = np.full((num_students, num_assignments), HIGH_COST)
+
+for i, student in enumerate(Students):
+    for assignment, rank in assignment_rank[student].items():
+        j = Assign.index(assignment)
+        cost_matrix[i, j] = rank
+
+# -----------------------------
+# STEP 2: RUN HUNGARIAN ALGORITHM
+# -----------------------------
+
+row_ind, col_ind = linear_sum_assignment(cost_matrix)
+
+# -----------------------------
+# STEP 2: RUN HUNGARIAN ALGORITHM
+# -----------------------------
+
+print("\n=== Cost Matrix (Students × Assignments) ===")
+print(cost_matrix)
+
+row_ind, col_ind = linear_sum_assignment(cost_matrix)
+
+print("\n=== Hungarian Algorithm Output ===")
+print("Row indices (students):", row_ind)
+print("Column indices (assignments):", col_ind)
+
+
+
+# -----------------------------
+# STEP 3: PRINT RESULTS
+# -----------------------------
+
+print("\n=== Final Student → Assignment Results ===")
+for r, c in zip(row_ind, col_ind):
+    student = Students[r]
+    assignment = Assign[c]
+    cost = cost_matrix[r, c]
+    print(f"Student {student} → Assignment {assignment} (cost {cost})")
+
+print("\nSummary:")
+print("Students:", len(Students))
+print("Assignments:", len(Assign))
