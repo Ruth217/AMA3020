@@ -1,0 +1,199 @@
+import numpy as np
+from scipy.optimize import linear_sum_assignment
+import pandas as pd
+import networkx as nx
+import matplotlib.pyplot as plt
+import sys
+from collections import defaultdict
+
+# -----------------------------
+# STEP 0: LOAD DATA
+# -----------------------------
+
+df = pd.read_excel("/content/realdata.xlsx", sheet_name=1)
+
+Assignments = df.columns[1:].tolist()
+Students = df.iloc[:, 0].tolist()
+
+# Build assignment_rank[student][assignment] = rank
+assignment_rank = {}
+
+for idx, row in df.iterrows():
+    student = row.iloc[0]
+    ranks = row.iloc[1:]
+    assignment_rank[student] = {}
+
+    for assignment, rank in zip(Assignments, ranks):
+        if pd.notna(rank):
+            assignment_rank[student][assignment] = int(rank)
+
+HIGH_COST = 999999
+
+
+# -----------------------------
+# STEP 1: AUTO-PAIR IDENTICAL CHOICE STUDENTS
+# -----------------------------
+
+def make_signature(rank_dict):
+    return tuple(sorted(rank_dict.items()))
+
+signature_groups = defaultdict(list)
+
+for student in Students:
+    sig = make_signature(assignment_rank[student])
+    signature_groups[sig].append(student)
+
+auto_pairs = []
+solo_after_auto = []
+
+for sig, group in signature_groups.items():
+    if len(group) >= 2:
+        for i in range(0, len(group) - len(group) % 2, 2):
+            auto_pairs.append((group[i], group[i+1]))
+    if len(group) % 2 == 1:
+        solo_after_auto.append(group[-1])
+
+print("\n=== AUTO-PAIRED IDENTICAL STUDENTS ===")
+for p in auto_pairs:
+    print(p)
+print("Total auto-pairs:", len(auto_pairs))
+
+
+# -----------------------------
+# STEP 2: BLOSSOM PAIRING FOR REMAINING STUDENTS
+# -----------------------------
+
+Students_for_blossom = solo_after_auto
+n = len(Students_for_blossom)
+
+pair_cost_matrix = np.full((n, n), HIGH_COST, dtype=int)
+
+print("\n=== Building Pair Compatibility Matrix for Blossom ===")
+
+for i, s1 in enumerate(Students_for_blossom):
+    for j, s2 in enumerate(Students_for_blossom):
+        if i < j:
+            common = set(assignment_rank[s1]) & set(assignment_rank[s2])
+            if not common:
+                continue
+            best_cost = min(
+                assignment_rank[s1][A] + assignment_rank[s2][A]
+                for A in common
+            )
+            pair_cost_matrix[i, j] = best_cost
+            pair_cost_matrix[j, i] = best_cost
+
+np.fill_diagonal(pair_cost_matrix, HIGH_COST)
+
+# Blossom graph
+G = nx.Graph()
+for i in range(n):
+    for j in range(i+1, n):
+        if pair_cost_matrix[i, j] < HIGH_COST:
+            G.add_edge(i, j, weight=-pair_cost_matrix[i, j])
+
+matching = nx.max_weight_matching(G, maxcardinality=True)
+
+blossom_pairs = []
+matched = set()
+
+for i, j in matching:
+    blossom_pairs.append((Students_for_blossom[i], Students_for_blossom[j]))
+    matched.add(i)
+    matched.add(j)
+
+blossom_solos = [Students_for_blossom[i] for i in range(n) if i not in matched]
+
+print("\n=== BLOSSOM PAIRS ===")
+for p in blossom_pairs:
+    print(p)
+print("Total blossom pairs:", len(blossom_pairs))
+
+print("\n=== BLOSSOM SOLOS ===")
+print(blossom_solos)
+
+
+# -----------------------------
+# STEP 3: UNIFIED GROUP LIST
+# -----------------------------
+
+groups = auto_pairs + blossom_pairs + [(s,) for s in blossom_solos]
+num_groups = len(groups)
+num_assign = len(Assignments)
+
+print("\n=== GROUPS FOR FINAL ASSIGNMENT ===")
+for g in groups:
+    print(g)
+
+
+# -----------------------------
+# STEP 4: UNIFIED COST MATRIX
+# -----------------------------
+
+unified_cost = np.full((num_groups, num_assign), HIGH_COST, dtype=int)
+
+for i, group in enumerate(groups):
+    if len(group) == 2:
+        s1, s2 = group
+        for j, A in enumerate(Assignments):
+            if A in assignment_rank[s1] and A in assignment_rank[s2]:
+                unified_cost[i, j] = assignment_rank[s1][A] + assignment_rank[s2][A]
+    else:
+        s = group[0]
+        for j, A in enumerate(Assignments):
+            if A in assignment_rank[s]:
+                unified_cost[i, j] = assignment_rank[s][A]
+
+df_unified = pd.DataFrame(unified_cost, index=[str(g) for g in groups], columns=Assignments)
+print("\n=== UNIFIED COST MATRIX ===")
+print(df_unified)
+
+
+# -----------------------------
+# STEP 5: MINIMAX FAIR ASSIGNMENT
+# -----------------------------
+
+unique_costs = sorted(set(unified_cost.flatten()) - {HIGH_COST})
+
+def feasible_with_threshold(T):
+    filtered = np.where(unified_cost <= T, unified_cost, HIGH_COST)
+    row_ind, col_ind = linear_sum_assignment(filtered)
+
+    if len(row_ind) != num_groups:
+        return False
+    if any(filtered[r, c] >= HIGH_COST for r, c in zip(row_ind, col_ind)):
+        return False
+    if len(set(col_ind)) != num_groups:
+        return False
+    return True
+
+low, high = 0, len(unique_costs) - 1
+best_T = None
+
+while low <= high:
+    mid = (low + high) // 2
+    T = unique_costs[mid]
+    if feasible_with_threshold(T):
+        best_T = T
+        high = mid - 1
+    else:
+        low = mid + 1
+
+if best_T is None:
+    print("\nERROR: No fair assignment possible.")
+    sys.exit(1)
+
+print(f"\n=== FAIRNESS THRESHOLD: T = {best_T} ===")
+
+filtered = np.where(unified_cost <= best_T, unified_cost, HIGH_COST)
+row_ind, col_ind = linear_sum_assignment(filtered)
+
+print("\n=== FINAL GROUP → ASSIGNMENT RESULTS ===")
+for r, c in zip(row_ind, col_ind):
+    print(f"{groups[r]} → {Assignments[c]} (cost {unified_cost[r, c]})")
+
+print("\nSummary:")
+print("Total students:", len(Students))
+print("Auto-pairs:", len(auto_pairs))
+print("Blossom pairs:", len(blossom_pairs))
+print("Solos:", len(blossom_solos))
