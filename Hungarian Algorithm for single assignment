@@ -44,13 +44,13 @@ for i, student in enumerate(Students):
         cost_matrix[i, j] = rank
 
 # -----------------------------
-# STEP 2: RUN HUNGARIAN ALGORITHM
+# STEP 2: RUN ASSINGNMENT ALGORITHM
 # -----------------------------
 
 row_ind, col_ind = linear_sum_assignment(cost_matrix)
 
 # -----------------------------
-# STEP 2: RUN HUNGARIAN ALGORITHM
+# STEP 2: PRINT ASSINGNMENT ALGORITHM
 # -----------------------------
 
 print("\n=== Cost Matrix (Students × Assignments) ===")
@@ -58,7 +58,7 @@ print(cost_matrix)
 
 row_ind, col_ind = linear_sum_assignment(cost_matrix)
 
-print("\n=== Hungarian Algorithm Output ===")
+print("\n=== Assignment Algorithm Output ===")
 print("Row indices (students):", row_ind)
 print("Column indices (assignments):", col_ind)
 
