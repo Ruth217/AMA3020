@@ -1,3 +1,5 @@
+#final method with pairs taken out
+
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 import pandas as pd
@@ -114,6 +116,27 @@ print(blossom_solos)
 
 
 # -----------------------------
+# VISUALIZATION (OPTIONAL)
+# -----------------------------
+G_full = nx.Graph()
+for i, s1 in enumerate(Students_for_blossom):
+    for j, s2 in enumerate(Students_for_blossom):
+        if i < j and pair_cost_matrix[i, j] < HIGH_COST:
+            cost = pair_cost_matrix[i, j]
+            G_full.add_edge(s1, s2, weight=cost)
+
+pos = nx.spring_layout(G_full, seed=42)
+
+plt.figure(figsize=(14, 14))
+nx.draw_networkx_edges(G_full, pos, alpha=0.15, edge_color="gray", width=1)
+nx.draw_networkx_edges(G_full, pos, edgelist=blossom_pairs, width=3, edge_color="red")
+nx.draw_networkx_nodes(G_full, pos, node_size=700, node_color="lightblue", edgecolors="black")
+nx.draw_networkx_labels(G_full, pos, font_size=10, font_weight="bold")
+plt.title("Blossom Pairing Highlighted on Full Compatibility Graph", fontsize=16)
+plt.axis("off")
+plt.show()
+
+# -----------------------------
 # STEP 3: UNIFIED GROUP LIST
 # -----------------------------
 
@@ -130,24 +153,34 @@ for g in groups:
 # STEP 4: UNIFIED COST MATRIX
 # -----------------------------
 
+# -----------------------------
+# STEP 4: UNIFIED COST MATRIX
+# -----------------------------
+
+PAIR_PENALTY = 10
+
 unified_cost = np.full((num_groups, num_assign), HIGH_COST, dtype=int)
 
 for i, group in enumerate(groups):
+
+    # Penalty only for auto-pairs
+    is_auto_pair = (len(group) == 2 and group in auto_pairs)
+
     if len(group) == 2:
         s1, s2 = group
         for j, A in enumerate(Assignments):
             if A in assignment_rank[s1] and A in assignment_rank[s2]:
-                unified_cost[i, j] = assignment_rank[s1][A] + assignment_rank[s2][A]
+                base_cost = assignment_rank[s1][A] + assignment_rank[s2][A]
+                if is_auto_pair:
+                    base_cost += PAIR_PENALTY
+                unified_cost[i, j] = base_cost
+
     else:
+        # Solo student
         s = group[0]
         for j, A in enumerate(Assignments):
             if A in assignment_rank[s]:
                 unified_cost[i, j] = assignment_rank[s][A]
-
-df_unified = pd.DataFrame(unified_cost, index=[str(g) for g in groups], columns=Assignments)
-print("\n=== UNIFIED COST MATRIX ===")
-print(df_unified)
-
 
 # -----------------------------
 # STEP 5: MINIMAX FAIR ASSIGNMENT
@@ -197,3 +230,8 @@ print("Total students:", len(Students))
 print("Auto-pairs:", len(auto_pairs))
 print("Blossom pairs:", len(blossom_pairs))
 print("Solos:", len(blossom_solos))
+
+total_cost1 = sum(unified_cost[r, c] for r, c in zip(row_ind, col_ind))
+print("Cost", total_cost1)
+
+
