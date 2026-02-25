@@ -1,0 +1,34 @@
+Keeler’s (Futurama) Theorem
+Suppose a permutation π ∈ S_n is written as a product of distinct transpositions.
+Keeler’s Theorem states that it is always possible to undo π using only distinct transpositions, provided we enlarge the domain by two new elements.
+
+Theorem
+Let 
+    π ∈ S_n
+be a permutation expressible as a product of distinct transpositions.
+Then there exists a permutation
+    σ ∈ S_{n+2}
+such that
+σπ = id.
+
+
+Proof (Keeler)
+Let π be a k-cycle on [n], written as
+π= 1 2 ... k k+1 ... n
+   2 3 ... 1 k+1 ... n 
+
+Extend  π to a permutation π* on [n] ∪ {x,y}
+by fixing the two new elements x and y
+
+Define σ as the left‑to‑right composition of the following distinct transpositions:
+σ = (x1)(y2)(y3)...(yk)(x2)(y1)
+
+Each transposition swaps one of the new elements x or y with an element of [n], ensuring that no transposition is repeated.
+A direct computation shows that
+π* σ = 1 2 ... n x y
+       1 2 ... n y x
+Thus σ restores every element of [n] to its original position and swaps only 
+x and y.
+If desired, the final transposition (xy) returns them to their original positions as well.
+Since any permutation decomposes into disjoint cycles, applying this construction to each cycle independently yields a product of distinct transpositions that inverts the entire permutation.
+□
